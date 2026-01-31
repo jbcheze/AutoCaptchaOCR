@@ -3,15 +3,15 @@
 # The goal is to scrape button selectors from Consent-O-Matic GitHub public repo to extract selectors for the main scraper script.
 # ================================================================================================================================
 
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-import requests
 import json
 
-# Consent-O-Matic is a public open source GitHub containing rule lists for CMPs (ref. rules.json in utils)
+# Consent-O-Matic is a public open source GitHub containing rule lists for CMPs (ref. rules.json in utils_captcha)
 url = "https://github.com/cavi-au/Consent-O-Matic/tree/master/rules"
 absolute_url = "https://raw.githubusercontent.com/cavi-au/Consent-O-Matic/master/rules/"
 css_selectors = []
@@ -66,12 +66,13 @@ def get_json_files(driver, wait, url):
     finally:
         driver.quit()
 
-json_files = get_json_files(driver,wait,url) # 408 files are too long to check, a) long with bs4 b) giant platforms do not use text captcha anymore, 
+json_files = get_json_files(driver,wait,url) # 408 files are too long to check, a) long with bs4 b) giant platforms do not use text captcha anymore
 
 # ================================================================================================================================
-# Filtering main JSON files by keywords (ookie related & top cookie governance platforms 
+# Filtering main JSON files by keywords (cookie related & top cookie governance platforms)
 # ================================================================================================================================
-keywords = ['consent', 'cookie', 'cookiebot', 'cookiefirst', 'cookiepro', 'onetrust', 'quantcast', 'consentmanager', 'google', 'cloudflare', 'pwc', 'cookieyes',  'cookiehub', 'popup']
+keywords = ['consent', 'cookie', 'cookiebot', 'cookiefirst', 'cookiepro', 'cookieyes', 'cookiehub',
+            'onetrust', 'quantcast', 'consentmanager', 'google', 'cloudflare', 'popup']
 
 main_files = []
 
@@ -81,7 +82,7 @@ for file in json_files:
         if keyword in file_lower:
             main_files.append(file)
             break
-print(f"Filtered: {len(main_files)} main files from {len(json_files)} total on GitHub repo") # 408 to 68 files
+print(f"Filtered {len(main_files)} main files from {len(json_files)} total on GitHub repo") # 408 -> 68 files
 
 # ================================================================================================================================
 # Parsing JSON files to extract CSS selectors
@@ -111,7 +112,7 @@ for file in main_files:
                         if (selector.startswith('#') or selector.startswith('.')) and selector not in css_selectors:
                             css_selectors.append(selector)
     else:
-        print(f"Error: {json_response.status_code}")
+        print(f"Error {json_response.status_code}")
 
 print(f"Parsed {len(css_selectors)} selectors")
 
@@ -119,7 +120,7 @@ print(f"Parsed {len(css_selectors)} selectors")
 # ================================================================================================================================
 # Adding XPATH selectors manually (GITHUB COPILOT)
 # ================================================================================================================================
-# During demo testing we had searched for international sites, hence adding simple button XPATH selectors in different languages
+# During demo testing we had searched for international sites, hence adding simple button XPATH selectors in different languages (Github Copilot propositions)
 xpath_selectors = [
     "//button[contains(text(),'Accept')]", # button
     "//button[contains(text(),'Accept all')]",
@@ -131,11 +132,13 @@ xpath_selectors = [
     "//button[contains(text(),'Aceptar')]",
     "//button[contains(text(),'Acepto')]",
     "//a[contains(text(),'Accepter')]",
+    "//a[contains(text(),'Tout accepter')]",
     "//a[contains(text(),'Aceptar')]",
     "//a[contains(text(),'Accept')]", # links
     "//a[contains(text(),'I accept')]",
     "//a[contains(text(),'Agree')]",
     "//input[@value='Accept']", # input
+    "//input[@value='Tout accepter']",
     "//input[@value='Accept']",
     "//input[@value='Accepter']",
     
@@ -146,7 +149,7 @@ xpath_selectors = [
 print(f"{len(css_selectors)} CSS + {len(xpath_selectors)} XPath = {len(css_selectors)+len(xpath_selectors)} in total") # 37 CSS + 18 XPath = 55 in total
 
 # Saving in utils
-with open('src/webscraping/utils/consent_selectors.py', 'w', encoding='utf-8') as file:
+with open('webscraping_captcha/utils_captcha/consent_selectors.py', 'w', encoding='utf-8') as file:
     file.write('# CSS SELECTORS \n')
     file.write('css_selectors = [')
     for selector in css_selectors:
