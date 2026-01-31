@@ -1,358 +1,374 @@
 # ================================================================================================================================
 # CAPTCHA SCRAPER 
-# The goal is to detect captcha on the page (visible area, consent buttons, scroll down, iframes) 
-
-# Save text CAPTCHA (data/raw) & determine type for reCAPTCHA/hCaptcha/Cloudflare (data/processed/scraping_metadata)
+# The goal is to detect CAPTCHA type (text/reCAPTCHA/hCAPTCHA/Cloudflare/unknown) & extract text CAPTCHA on the page (visible area, consent buttons, scroll down, iframes) 
 # ================================================================================================================================
-
-# recaptcha v2 v3 https://github.com/2captcha/captcha-solver-selenium-python-examples/tree/main/examples/reCAPTCHA
-# hcaptcha https://github.com/maximedrn/hcaptcha-solver-python-selenium
-# cloudflare https://github.com/2captcha/captcha-solver-selenium-python-examples/tree/main/examples/cloudflare
-
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager # for WIFI connection, if hotspot - no service option needed
 from selenium.common.exceptions import TimeoutException
 import json
-import os
-import requests
 from datetime import datetime
 import time
+from pathlib import Path
 from utils.consent_selectors import css_selectors, xpath_selectors
 from utils.human_verification_keywords import verification_keywords
 
+
 class CaptchaScraper:
+    # ================================================================================================================================
+    # Webdriver config
+    # ================================================================================================================================
     def __init__(self, chrome_driver_path=None):
-        # ================================================================================================================================
-        # Webdriver : config + initialization
-        # ================================================================================================================================
+        print("Browser initialization")
+        
+        # Chrome options
+        # self.options.add_argument('--headless') 
         self.options = webdriver.ChromeOptions()
         self.options.add_argument("--no-sandbox")
         self.options.add_argument("--disable-dev-shm-usage")
-        #self.options.add_argument('--headless')
+        
+        # Initialize driver
         if chrome_driver_path:
-            self.driver = webdriver.Chrome(service=Service(chrome_driver_path), options=self.options)
+            self.driver = webdriver.Chrome(
+                service=Service(chrome_driver_path), 
+                options=self.options
+            )
         else:
             try:
-                # self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options) If connected to WIFI 
-                self.driver = webdriver.Chrome(options=self.options) # If connected to personal hotspot 
+                self.driver = webdriver.Chrome(options=self.options)
             except Exception as e:
-                raise Exception(
-                    "ChromeDriver not found in system PATH. "
-                    "Specify the path or add it to the system PATH.\n"
-                    f"Error: {str(e)}"
-                )
-
+                raise Exception(f"ChromeDriver not found in system PATH. "
+                                "Specify the path or add it to the system PATH.\n"
+                                f"Error: {str(e)}"
+                                )
+        
         self.wait = WebDriverWait(self.driver, 10)
+
         self.captcha_element = None
-        self.captcha_type = None  # text/recaptcha_v2/hcaptcha/cloudflare/unknown
-        self.detection_method = None
+        self.captcha_type = None
 
-
-    def find_captcha_in_elements(self, images, context=""):
+    def detect_images(self, images, context=""):
         # ================================================================================================================================
-        # Search for CAPTCHA-like elements among given images
+        # Search for CAPTCHA images
         # ================================================================================================================================
         for image in images:
             try:
+                # Filtering by size
                 width = image.size['width']
                 height = image.size['height']
-
-                src = (image.get_attribute('src') or '').lower()
-                alt = (image.get_attribute('alt') or '').lower()
-                 
                 if 30 < width < 400 and 30 < height < 300:
-                    # Logo and banner filtering
+                    # Filterinf by logo or banner
+                    src = (image.get_attribute("src") or "").lower()
                     if "logo" in src or "banner" in src:
                         continue
-
-                    # Check for CAPTCHA keywords
-                    if 'captcha' in src or 'captcha' in alt:
-                        print(f"Text CAPTCHA found {context}, size {width} x {height}")
-                        return image
-
-                    print(f"Potential CAPTCHA {context}, size {width} x {height}")
+                    
+                    print(f"Potential CAPTCHA found: {width}x{height}")
                     return image
+            
             except:
                 continue
+        
         return None
 
     def click_consent_buttons(self):
-        print("Handling consent buttons")
+        # ================================================================================================================================
+        # Click consent/cookie buttons
+        # ================================================================================================================================
+        # Scroll to load pop ups
         self.driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
-        time.sleep(0.5)
+        time.sleep(2)
         self.driver.execute_script('window.scrollTo(0, 0);')
-        time.sleep(0.5)
+        time.sleep(1)
         
-        # Try CSS selectors first
-        for index, css_selector in enumerate(css_selectors, 1):
+        # Trying CSS selectors 
+        for css_selector in css_selectors:
             try:
                 buttons = self.driver.find_elements(By.CSS_SELECTOR, css_selector)
-                if buttons:
-                    for button in buttons:
-                        if button.is_displayed() and button.is_enabled():
-                            button.click()
-                            print(f"Clicked using CSS selector #{index}")
-                            time.sleep(1)
-                            return True
-            except Exception:
+                for button in buttons:
+                    if button.is_displayed():
+                        button.click()
+                        print("Consent button clicked with CSS selector")
+                        time.sleep(1)
+                        return True
+            
+            except:
                 continue
-
-        # Try XPath selectors
-        for index, xpath_selector in enumerate(xpath_selectors, 1):
+        
+        # Trying XPath selectors
+        for xpath_selector in xpath_selectors:
             try:
                 buttons = self.driver.find_elements(By.XPATH, xpath_selector)
-                if buttons:
-                    for button in buttons:
-                        if button.is_displayed() and button.is_enabled():
-                            button.click()
-                            print(f"Clicked using XPath selector #{index}")
-                            time.sleep(1)
-                            return True
-            except Exception:
+                for button in buttons:
+                    if button.is_displayed():
+                        button.click()
+                        print("Consent button clicked with XPath selector")
+                        time.sleep(1)
+                        return True
+            
+            except:
                 continue
-
+        
         print("No consent buttons found")
         return False
 
-    def check_third_party_iframes(self):
-        # THird parts
-        print("Checking third-party iframes...")
-        
+    def check_iframes(self):
+        # ================================================================================================================================
+        # Check for reCAPTCHA/hCAPTCHA/Cloudflare iframes
+        # ================================================================================================================================
         try:
             iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
-            print(f"Found {len(iframes)} iframe(s)")
+            print(f"Found {len(iframes)} iframes")
             
-            for i, iframe in enumerate(iframes, 1):
+            for iframe in iframes:
                 try:
+                    # Get iframe source & title
                     src = (iframe.get_attribute('src') or '').lower()
                     title = (iframe.get_attribute('title') or '').lower()
                     
-                    # reCAPTCHA detection
-                    if 'recaptcha' in src or 'google.com/recaptcha' in src or 'recaptcha' in title:
-                        print(f"reCAPTCHA iframe")
-                        self.captcha_type = "recaptcha_v2"
-                        self.detection_method = "recaptcha_iframe"
-                        # IMPORTANT: Do NOT save iframe element (prevents stale element error)
+                    # Check for reCAPTCHA
+                    if 'recaptcha' in src or 'recaptcha' in title:
+                        print("reCAPTCHA detected")
+                        self.captcha_type="recaptcha_v2_v3"
                         return True
                     
-                    # hCaptcha detection
+                    # Check for hCAPTCHA
                     if 'hcaptcha' in src or 'hcaptcha' in title:
-                        print(f"hCaptcha iframe")
-                        self.captcha_type = "hcaptcha"
-                        self.detection_method = "hcaptcha_iframe"
+                        print("hCaptcha detected")
+                        self.captcha_type="hcaptcha"
                         return True
                     
-                    # Cloudflare Turnstile detection
-                    if 'cloudflare' in src or 'challenges.cloudflare' in src or 'turnstile' in src:
-                        print(f"Cloudflare Turnstile iframe")
-                        self.captcha_type = "cloudflare"
-                        self.detection_method = "cloudflare_iframe"
+                    # Check for Cloudflare
+                    if 'cloudflare' in src:
+                        print("Cloudflare detected")
+                        self.captcha_type="cloudflare"
                         return True
-                    
+                
                 except:
                     continue
+        
         except Exception as e:
             print(f"Error checking iframes: {e}")
         
-        print("No third-party CAPTCHA iframes found")
+        print("No CAPTCHA iframes found")
         return False
 
     def check_verification_messages(self):
-        print("Checking verification messages...")
-        
+        # ================================================================================================================================
+        # Check for verification messages like "I'm not a robot"
+        # ================================================================================================================================
         try:
             body = self.driver.find_element(By.TAG_NAME, 'body')
             page_text = body.text.lower()
             
+            # Check for each keyword
             for keyword in verification_keywords:
-                if keyword.lower() in page_text:
-                    print(f"Verification message: '{keyword[:50]}...'")
-                    self.detection_method = f"verification_text"
-                    self.captcha_type = "unknown"
+                keyword_lower = keyword.lower()
+                
+                if keyword_lower in page_text:
+                    print(f"Verification message : '{keyword}'")
+                    self.captcha_type = "verification_text"
                     return True
             
             print("No verification messages found")
             return False
+        
         except Exception as e:
-            print(f"Error checking messages: {e}")
+            print(f"Error checking verification pop up: {e}")
             return False
 
-    def extract_captcha(self):
-        # Step 1: Handle consent buttons
+    def captcha_extracting(self):
+        # ================================================================================================================================
+        # Extract CAPTCHA: consent -> iframes -> text CAPTCHA -> scrolling -> iframes
+        # ================================================================================================================================
+        # 1. Click consent buttons
+        print("Checking consent buttons")
         consent_clicked = self.click_consent_buttons()
         if consent_clicked:
-            print("CONSENT Handled successfully\n")
-            time.sleep(1)
+            time.sleep(2)
         
-        # Step 2: PRIORITY - Check third-party iframes FIRST
-        # This is the most reliable method for modern CAPTCHAs (professor's requirement)
-        if self.check_third_party_iframes():
-            print(f"SUCCESS: {self.captcha_type.upper()} DETECTED")
+        # 2. Check for modern CAPTCHAs (reCAPTCHA/hCAPTCHA/Cloudflare)
+        print("Checking iframes")
+        if self.check_iframes():
+            print(f"{self.captcha_type} found")
             return True
         
-        # Step 3: Search for text-based CAPTCHA images
-        print("3. Searching for text-based CAPTCHAs...")
-        
-        # Step 3.1: Visible area
-        print("3.1 Checking visible area...")
+        # 3. Check for text CAPTCHA
+        print("Checking for text CAPTCHA")
         captcha = None
+        
+        # Check visible area
+        print("1) Visible area")
         try:
             self.wait.until(EC.presence_of_element_located((By.XPATH, "//img | //canvas")))
             elements = self.driver.find_elements(By.XPATH, "//img | //canvas")
-            print(f"Found {len(elements)} image/canvas elements")
-
-            captcha = self.find_captcha_in_elements(elements, "in visible area")
+            print(f"Found {len(elements)} images")
             
+            captcha = self.detect_images(elements, "visible area")
+        
         except TimeoutException:
-            print("No images found in visible area")
+            print("No images in visible area")
         
         if captcha:
             self.captcha_element = captcha
             self.captcha_type = "text"
-            self.detection_method = "text_image_visible"
-            print("SUCCESS: TEXT CAPTCHA DETECTED")
+            print("Text CAPTCHA found in visible area !")
             return True
         
-        # Step 3.2: After scrolling
-        print("3.2 Scrolling down...")
+        # Scroll down and check again
+        print("2) After scrolling")
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
         
         try:
             elements = self.driver.find_elements(By.XPATH, "//img | //canvas")
-            print(f"Found {len(elements)} image/canvas elements")
-            captcha = self.find_captcha_in_elements(elements, "after scrolling")
+            print(f"Found {len(elements)} images")
             
+            captcha = self.detect_images(elements, "after scroll")
+        
         except Exception as e:
-            print(f"Error after scrolling: {e}")
-
+            print(f"Error {e}")
+        
         if captcha:
             self.captcha_element = captcha
             self.captcha_type = "text"
-            self.detection_method = "text_image_scroll"
-            print("SUCCESS: TEXT CAPTCHA DETECTED")
+            print("Text CAPTCHA found after scrolling !")
             return True
         
-        # Step 3.3: Inside iframes
-        print("3.3 Checking iframes for images...")
+        # Check inside iframes
+        print("3) Inside iframes")
         try:
             iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
-            print(f"Found {len(iframes)} iframe(s)")
+            print(f"Found {len(iframes)} iframes")
             
-            for i, iframe in enumerate(iframes):
+            for iframe in iframes:
                 try:
-                    print(f"Checking iframe {i+1}...")
+                    # Switch to iframe
                     self.driver.switch_to.frame(iframe)
-                    time.sleep(0.5)
-                    
+    
                     elements = self.driver.find_elements(By.XPATH, "//img | //canvas")
-                    print(f"Found {len(elements)} elements in iframe")
-                    captcha = self.find_captcha_in_elements(elements, f"in iframe {i+1}")
+                    print(f"Iframe: {len(elements)} images")
+                    
+                    captcha = self.detect_images(elements, f"iframe")
                     
                     if captcha:
                         self.captcha_element = captcha
                         self.captcha_type = "text"
-                        self.detection_method = f"text_image_iframe_{i+1}"
-                        print("\n" + "="*70)
-                        print(f"SUCCESS: TEXT CAPTCHA IN IFRAME {i+1}")
-                        print("="*70)
+                        print(f"Text CAPTCHA found in iframe !")
                         return True
                     
+                    # Back to default
                     self.driver.switch_to.default_content()
-                    
+                
                 except Exception as e:
-                    print(f"   Error in iframe {i+1}: {e}")
+                    print(f"Iframe error: {e}")
                     self.driver.switch_to.default_content()
                     continue
-                
+        
         except Exception as e:
-            print(f"Error checking iframes: {e}")
             self.driver.switch_to.default_content()
         
-        # Step 4: Fallback check verification messages
+        # Check for verification messages
+        print("4) Checking verification messages")
         if self.check_verification_messages():
-            print("SUCCESS: VERIFICATION MESSAGE DETECTED")
             return True
         
-        print("NO CAPTCHA DETECTED")
+        print("No CAPTCHA detected")
         return False
 
-    def save_captcha_image(self):
+    def save_captcha(self):
+        # ================================================================================================================================
+        # Saving CAPTCHA : extracting directly else screenshot
+        # ================================================================================================================================
         if not self.captcha_element:
-            print("No CAPTCHA element to save")
+            print("No CAPTCHA to save")
             return None
         
         try:
-            os.makedirs("data/raw", exist_ok=True)
+            # Create directory
+            data_dir = Path("data/raw")
+            data_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"captcha_{timestamp}.png"
-            path = f"data/raw/{filename}"
+            filepath = data_dir / filename
             
-            # Method 1: Try downloading from src
+            # Try downloading from src
             tag_name = self.captcha_element.tag_name.lower()
+            
             if tag_name == 'img':
                 src = self.captcha_element.get_attribute('src')
                 
+                # Check if we can download
                 if src and not src.startswith('data:'):
                     try:
-                        print(f"Downloading from src...")
+                        print("Downloading image from src")
                         
-                        # Make URL absolute if relative
+                        # Make URL absolute
                         if src.startswith('/'):
-                            base_url = '/'.join(self.driver.current_url.split('/')[:3])
+                            current_url = self.driver.current_url
+                            url_parts = current_url.split('/')
+                            base_url = url_parts[0] + '//' + url_parts[2]
                             src = base_url + src
                         
-                        # Download with session cookies
+                        # Get cookies
                         cookies = self.driver.get_cookies()
                         session = requests.Session()
+                        
                         for cookie in cookies:
                             session.cookies.set(cookie['name'], cookie['value'])
                         
                         response = session.get(src, timeout=10)
                         
                         if response.status_code == 200:
-                            with open(path, 'wb') as f:
+                            with open(filepath, 'wb') as f:
                                 f.write(response.content)
-                            print(f"Image downloaded: {path}")
-                            return path
+                            
+                            print(f"Image downloaded: {filepath}")
+                            return str(filepath)
+                    
                     except Exception as e:
-                        print(f" Download failed: {e}")
+                        print(f"Download failed: {e}")
             
-            # Method 2: Take screenshot
-            print(f"Taking screenshot...")
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", 
-                                      self.captcha_element)
+            # Take screenshot instead
+            print("Taking screenshot")
+            script = "arguments[0].scrollIntoView({block: 'center'});"
+            self.driver.execute_script(script, self.captcha_element)
             time.sleep(0.5)
             
-            self.captcha_element.screenshot(path)
-            print(f"SAVED Screenshot: {path}")
-            return path
+            # Screenshot
+            self.captcha_element.screenshot(str(filepath))
+            print(f"Screenshot saved: {filepath}")
             
+            return str(filepath)
+        
         except Exception as e:
-            print(f"ERROR Save failed: {e}")
+            print(f"Save failed: {e}")
             return None
 
     def save_metadata(self, filename, url):
-        os.makedirs("data/processed", exist_ok=True)
-        metadata_path = "data/processed/captcha_metadata.json"
+        # ================================================================================================================================
+        # Saving CAPTCHA
+        # ================================================================================================================================
+        data_dir = Path("data/processed")
+        data_dir.mkdir(parents=True, exist_ok=True)
         
+        metadata_path = data_dir / "scraping_captchas_metadata.json"
         try:
             with open(metadata_path, 'r', encoding='utf-8') as f:
                 all_metadata = json.load(f)
         except:
             all_metadata = []
         
+        # Create new entry
         metadata_entry = {
             'filename': filename,
             'url': url,
-            'timestamp': datetime.now().isoformat(),
             'page_title': self.driver.title,
-            'captcha_type': self.captcha_type,
-            'detection_method': self.detection_method
+            'captcha_type': self.captcha_type
         }
         
         all_metadata.append(metadata_entry)
@@ -360,96 +376,81 @@ class CaptchaScraper:
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(all_metadata, f, indent=2, ensure_ascii=False)
         
-        print(f"METADATA saved to {metadata_path}")
+        print(f"Metadata saved to {metadata_path}")
 
     def scrape_url(self, url):
+        # ================================================================================================================================
+        # Main scraping func
+        # ================================================================================================================================
         try:
             print(f"Navigating to: {url}")
             self.driver.get(url)
+            
+            # Wait for page load
             self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            print(f"Page loaded: {self.driver.title}")
-            time.sleep(1)
+            time.sleep(3)
             
             # Detect CAPTCHA
-            if self.extract_captcha():
-                # Text CAPTCHA: save image
+            if self.captcha_extracting():
                 if self.captcha_type == "text":
-                    captcha_path = self.save_captcha_image()
+                    captcha_path = self.save_captcha()
+                    
                     if captcha_path:
                         self.save_metadata(captcha_path, url)
                         return True
                     else:
-                        # Detected but save failed
                         self.save_metadata("save_failed", url)
                         return True
+                
+                # For reCAPTCHA v2 v3/hCAPTCHA/Cloudflare saving metadata only
                 else:
-                    # Modern CAPTCHA (reCAPTCHA/hCaptcha/Cloudflare)
-                    # Save type only, NO image
-                    print(f"\n[{self.captcha_type.upper()}] Saving type to metadata only")
-                    self.save_metadata("modern_captcha_detected", url)
+                    self.save_metadata("modern_captcha", url)
                     return True
             
             return False
         
         except Exception as e:
-            print(f"[ERROR] {e}")
+            print(f"Error: {e}")
             return False
         
         finally:
+            # Resetting 
             self.driver.switch_to.default_content()
-            # Reset state
             self.captcha_element = None
             self.captcha_type = None
-            self.detection_method = None
 
     def close(self):
         self.driver.quit()
 
 
-def main(): 
-    print("Initializing WebDriver")
+def main():
     scraper = CaptchaScraper()
-
+    
     # Test URLs
     urls = [
-        "https://www.metropolegrandparis.fr/fr/formulaire-de-contact",
-        "https://www.google.com/recaptcha/api2/demo",
-        "https://accounts.hcaptcha.com/demo",
-        "https://2captcha.com/demo/cloudflare-turnstile",
-        "https://www.metropolegrandparis.fr/fr/formulaire-de-contact",
-       "https://www.rdv-prefecture.interieur.gouv.fr/rdvpref/reservation/demarche/4443/cgu/", 
-       "https://rutracker.org/forum/profile.php?mode=register",
-       "https://recaptcha-demo.appspot.com/recaptcha-v2-checkbox.php?utm_source=chatgpt.com",
-        "https://www.wigglypaint.art/ru/popular-games/im-not-a-robot?utm_source=chatgpt.com",
-        "https://visa.vfsglobal.com/gbr/en/aut/book-an-appointment",
-        "https://www.google.com/recaptcha/api2/demo?utm_source=chatgpt.com",
-        "https://neal.fun/not-a-robot/",
-        "https://secure.aarp.org/applications/user/register?response_type=code&client_id=0oadzmafi2ZcytYcq2p7&redirect_uri=https%3A%2F%2Fapi.eventive.org%2Fauth%2Faarp%2Fcallback&state=274a4a5862f2cedca05c10706059ee23&scope=bui+bmi+ba+em+ln&promo=MFG"
-        "https://www.emerson.com/global",
-        "https://www.phpbb.com/community/ucp.php?mode=register" #-> rajouter button1 class in consetn
-        "https://forum.vbulletin.com/register" #HCPATCHA
-        "https://www.google.com/recaptcha/api2/demo" #-> GOOCLE RECAP
-        "https://recaptcha-demo.appspot.com/recaptcha-v2-checkbox.php"
-        "https://accounts.hcaptcha.com/demo"
-        "https://2captcha.com/demo/cloudflare-turnstile" # coudflare demo
+        "https://rutracker.org/forum/profile.php?mode=register", # Main POC site text CAPTCHA + cookie
+        
+        "https://nopecha.com/captcha/textcaptcha", # Text CAPTCHA demo
+        "https://solvecaptcha.com/demo/image-captcha", # Text CAPTCHA demo
+        #"https://www.metropolegrandparis.fr/fr/formulaire-de-contact", # Text CAPTCHA real (small size)
+        #"https://www.rdv-prefecture.interieur.gouv.fr/rdvpref/reservation/demarche/4443/cgu/", # Text CAPTCHA real
+        #"https://secure.aarp.org/applications/user/register?response_type=code&client_id=0oadzmafi2ZcytYcq2p7&redirect_uri=https%3A%2F%2Fapi.eventive.org%2Fauth%2Faarp%2Fcallback&state=274a4a5862f2cedca05c10706059ee23&scope=bui+bmi+ba+em+ln&promo=MFG" # 3D text CAPTCHA real
+        
+        #"https://www.google.com/recaptcha/api2/demo", # reCAPTCHA demo
+        #"https://neal.fun/not-a-robot/", # reCAPTCHA demo
+        #"https://recaptcha-demo.appspot.com/recaptcha-v2-checkbox.php" # reCAPTCHA v2 demo
+        
+        #"https://accounts.hcaptcha.com/demo", # hCAPCTHA demo
+        #"https://forum.vbulletin.com/register" #hCAPTCHA real
 
+        #"https://2captcha.com/demo/cloudflare-turnstile", # Cloudflare demo
+        #"https://2captcha.com/demo/cloudflare-turnstile" # Cloudflare demo
+
+        #"https://www.emerson.com/global", # no captchas but cookie
+        #"https://www.phpbb.com/community/ucp.php?mode=register" # no captchas but cookie
     ]
-
-    print("Beginning CAPTCHA scraping")
-    
-    success_count = 0
-    for idx, url in enumerate(urls, 1):
-        print(f"[{idx}/{len(urls)}] Processing URL")
-        
-        if scraper.scrape_url(url):
-            success_count += 1
-            print(f"Success for URL {idx}")
-        else:
-            print(f"Failed for URL {idx}")
-        
-        time.sleep(1) 
-
-    print(f"URLs processed: {len(urls)}")
+    for url in urls:
+        scraper.scrape_url(url)
 
     scraper.close()
     print("Browser closed")
@@ -457,3 +458,61 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+"""
+Browser initialization
+Navigating to: https://rutracker.org/forum/profile.php?mode=register
+Checking consent buttons
+Consent button clicked with XPath selector
+Checking iframes
+Found 0 iframes
+No CAPTCHA iframes found
+Checking for text CAPTCHA
+1) Visible area
+Found 4 images
+Potential CAPTCHA found: 120x72
+Text CAPTCHA found in visible area !
+Downloading image from src
+Image downloaded: data/raw/captcha_20260130_183701.png
+Metadata saved to data/processed/scraping_captchas_metadata.json
+
+Navigating to: https://nopecha.com/captcha/textcaptcha
+Checking consent buttons
+No consent buttons found
+Checking iframes
+Found 48 iframes
+No CAPTCHA iframes found
+Checking for text CAPTCHA
+1) Visible area
+No images in visible area
+2) After scrolling
+Found 0 images
+3) Inside iframes
+Found 48 iframes
+Iframe: 1 images
+Potential CAPTCHA found: 200x80
+Text CAPTCHA found in iframe !
+Downloading image from src
+Image downloaded: data/raw/captcha_20260130_183731.png
+Metadata saved to data/processed/scraping_captchas_metadata.json
+
+Navigating to: https://solvecaptcha.com/demo/image-captcha
+Checking consent buttons
+No consent buttons found
+Checking iframes
+Found 0 iframes
+No CAPTCHA iframes found
+Checking for text CAPTCHA
+1) Visible area
+Found 19 images
+Potential CAPTCHA found: 250x50
+Text CAPTCHA found in visible area !
+Downloading image from src
+Image downloaded: data/raw/captcha_20260130_183745.png
+Metadata saved to data/processed/scraping_captchas_metadata.json
+Browser closed
+"""
