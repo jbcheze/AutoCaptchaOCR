@@ -1,0 +1,4 @@
+"""
+Configurations for webscraping module
+"""
+from .consent_selectors import css_selectors, xpath_selectors
