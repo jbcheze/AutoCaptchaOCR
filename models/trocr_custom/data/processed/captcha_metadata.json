@@ -1,0 +1,18 @@
+[
+  {
+    "filename": "data/raw/captcha_20260131_150043.png",
+    "url": "https://rutracker.org/forum/profile.php?mode=register",
+    "timestamp": "2026-01-31T15:00:50.117657",
+    "page_title": "rutracker.org",
+    "captcha_type": "text",
+    "detection_method": "text_image_visible"
+  },
+  {
+    "filename": "data/raw/captcha_20260131_150106.png",
+    "url": "https://rutracker.org/forum/profile.php?mode=register",
+    "timestamp": "2026-01-31T15:01:19.242442",
+    "page_title": "rutracker.org",
+    "captcha_type": "text",
+    "detection_method": "text_image_visible"
+  }
+]
