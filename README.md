@@ -62,31 +62,83 @@ The framework is composed of independent but interoperable modules:
 ```text
 CaptchaVision/
 │
-├── app/                    # Streamlit frontend
+├── api/                         # FastAPI backend
+│   └── app/
+│       ├── main.py              # API entry point
+│       ├── api/
+│       │   └── routes/
+│       │       └── captcha.py   # CAPTCHA API routes
+│       ├── schemas/             # Pydantic schemas
+│       │   └── captcha.py
+│       └── services/            # Business logic
+│           ├── captcha_solver_service.py
+│           └── ocr_service.py
+│
+├── app/  # Frontend (Streamlit / client app) Finalement c'est dans script
+│   ├── __init__.py
 │   └── main.py
 │
-├── api/                    # FastAPI backend
-│   ├── main.py
-│   ├── routes/
-│   └── services/
+├── models/                      # Trained models & configs
+│   └── trocr_custom/
+│       ├── api/
+│       │   └── app/
+│       │       └── schemas/
+│       │           └── captcha.py
+│       ├── config.json
+│       ├── generation_config.json
+│       ├── processor_config.json
+│       ├── tokenizer.json
+│       └── tokenizer_config.json
 │
-├── ocr/                    # OCR engine
-│   ├── models/
-│   ├── preprocessing/
-│   ├── decoding/
-│   ├── inference/
-│   └── vocab/
+├── ocr/                         # OCR core logic
+│   ├── crnn/
+│   │   └── crnn_captcha.ipynb
+│   ├── ctc_layer.py
+│   ├── decoder.py
+│   ├── easyocr_predictor.py
+│   ├── model.py
+│   ├── predictor.py
+│   ├── preprocess.py
+│   ├── trocr_predictor.py
+│   └── vocab.py
 │
-├── scraper/
-├── webscraping/
+├── src/                         # Data preparation & utilities
+│   ├── class_mapping.py
+│   ├── prepare_captcha_target.py
+│   └── webscraping/
+│       ├── apply_webscrap.py
+│       ├── captcha_scraper.py
+│       ├── captcha_solver.py
+│       ├── consent_parser.py
+│       ├── human_verif_parser.py
+│       └── utils/
+│           ├── consent_selectors.py
+│           ├── human_verification_keywords.py
+│           └── rules_consent_o_matic.json
 │
-├── models/                 # trained weights
-│   └── ANASTASIIA_JB_THEO_9B2_PLUS_SITE.keras
+├── webscraping_captcha/          # CAPTCHA scraping & fine-tuning
+│   ├── captcha_scraper.py
+│   ├── captcha_solver.py
+│   ├── consent_parser.py
+│   ├── human_verif_parser.py
+│   ├── scraping_finetunning_benchmarking/
+│   │   ├── captcha_generator_for_training.py
+│   │   └── scraping_for_finetunning.py
+│   └── utils_captcha/
+│       ├── consent_selectors.py
+│       ├── human_verification_keywords.py
+│       └── rules_consent_o_matic.json
 │
-├── notebooks/              # experiments & training
-├── data/                   # datasets (not included)
+├── notebooks/                   # Experiments, benchmarks & training
+│
+├── scripts/
+│   └── demo.py
+│
 ├── tests/
+│   └── test_ocr.py
 │
+├── data/                        # Datasets (excluded from repo)
+├── list_tree.sh                 # Project tree generator
 ├── README.md
 └── requirements.txt
 ```
