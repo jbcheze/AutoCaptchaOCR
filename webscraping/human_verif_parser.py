@@ -92,7 +92,7 @@ verification_words = [
     'weird', 'spam', 'suspicious', 'suspicion',
     'security', 'captcha', 'challenge', 'test', 'checkup',
     'access', 'blocked', 'unblock', 'restriction', 'restricted',
-] # Github Copilot propositions
+] 
 
 filtered_keywords = set()
 
@@ -125,7 +125,7 @@ manual_keywords = [
     'just a moment',
     'please verify you are human',
     'to continue, please verify you are human'
-] # Github Copilot propositions
+] 
 
 filtered_keywords.update(manual_keywords)
 verification_keywords = sorted(filtered_keywords)
