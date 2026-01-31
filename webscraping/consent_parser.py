@@ -117,7 +117,7 @@ print(f"Parsed {len(css_selectors)} selectors")
 
 
 # ================================================================================================================================
-# Adding XPATH selectors manually (GITHUB COPILOT)
+# Adding XPATH selectors manually 
 # ================================================================================================================================
 # During demo testing we had searched for international sites, hence adding simple button XPATH selectors in different languages
 xpath_selectors = [
