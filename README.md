@@ -1,107 +1,123 @@
-#  Automated CAPTCHA Solver  
-**Web Scraping • Computer Vision • FastAPI**
+# CaptchaVision  
+**Automated CAPTCHA Recognition & Web Scraping Framework**  
+*Computer Vision • OCR • FastAPI • Selenium*
 
+---
 
 ## Project Objective
 
-The goal of this project is to design a **robust web scraping system capable of bypassing visual CAPTCHAs**, relying on three main components:
+This project aims to design a **robust automated system capable of solving visual CAPTCHA challenges** in real-world scraping scenarios.
 
-1. **Web scraping using Selenium**
-2. **Deep learning model for CAPTCHA recognition (letters & digits)**
-3. **REST API to orchestrate and industrialize the full pipeline using FastAPI**
+The system combines:
 
+1. Automated web scraping
+2. Deep learning OCR for CAPTCHA recognition
+3. API orchestration for scalable deployment
+4. End-to-end pipeline integration
 
+The system was trained and evaluated on visual CAPTCHA datasets and tested in real scraping conditions.
 
-## Project Architecture
+Target scraping environment used for training & testing:
 
-The system is composed of three independent but connected modules:
+https://rutracker.org/forum/profile.php?mode=register
 
-### Web Scraping (Selenium)
-- Automated navigation on websites protected by visual CAPTCHAs
-- Detection and extraction of CAPTCHA images
-- Robust browser configuration (headless mode, waits, retries)
+---
 
-### CAPTCHA Recognition Model
-- Supervised deep learning model (CNN / BILSTM)
-- Recognition of **letters and digits** (not reCAPTCHA)
-- Image preprocessing and evaluation metrics
-- Trained on open-source CAPTCHA datasets
+## System Architecture
+
+The framework is composed of independent but interoperable modules:
+
+### Web Scraping Layer (Selenium)
+
+- Automated navigation of CAPTCHA-protected websites
+- CAPTCHA detection & extraction
+- Retry logic and headless execution
+- Robust waiting strategies
+
+### OCR Engine
+
+- Custom deep learning model trained from scratch
+- Character-level sequence recognition
+- CNN + sequence decoding architecture
+- Optimized for distorted CAPTCHA text
+- Supports letters and digits
 
 ### API Orchestration (FastAPI)
-- Centralized control of scraping and prediction
-- REST endpoints for:
-  - triggering scraping
-  - solving CAPTCHAs
-  - monitoring system health
-- Designed for scalability and production-like deployment
 
+- REST interface to control scraping + OCR
+- Prediction endpoints
+- Health monitoring
+- Designed for production-like usage
+
+### Frontend (Streamlit)
+
+- Lightweight UI for demo & testing
+- Image upload + CAPTCHA solving
+- API integration
+
+---
 
 ## 📁 Project Structure
 
 ```text
-Captchas-Automatic-Resolution/
+CaptchaVision/
 │
-├── README.md
-├── requirements.txt
+├── app/                    # Streamlit frontend
+│   └── main.py
 │
-├── api/
+├── api/                    # FastAPI backend
 │   ├── main.py
 │   ├── routes/
 │   └── services/
 │
+├── ocr/                    # OCR engine
+│   ├── models/
+│   ├── preprocessing/
+│   ├── decoding/
+│   ├── inference/
+│   └── vocab/
+│
 ├── scraper/
-│   ├── scrape_captcha.py
-│   └── utils.py
+├── webscraping/
 │
-├── captcha_model/
-│   ├── model.py
-│   ├── preprocess.py
-│   ├── decoder.py
-│   ├── predictor.py
-│   ├── ctc_layer.py
-│   └── vocab.py
+├── models/                 # trained weights
+│   └── ANASTASIIA_JB_THEO_9B2_PLUS_SITE.keras
 │
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── samples/
-│
-├── models/
-│   └── *.keras
-│
-├── notebooks/
-│   └── *.ipynb
-│
-├── reports/
-│   └── projet_mosef.pdf
-│
-├── scripts/
-│   └── demo.py
-│
+├── notebooks/              # experiments & training
+├── data/                   # datasets (not included)
 ├── tests/
-│   └── test_ocr.py
 │
-└── deepseek_ocr/          # submodule (optionnel)
+├── README.md
+└── requirements.txt
 ```
 
-
+---
 
 ## Installation
 
-This project uses **Poetry** for dependency management.
-
 ```bash
-git clone https://github.com/aasavel/Captchas-Automatic-Resolution.git
-cd captcha-solver-project
-poetry install
-poetry shell
-
+git clone https://github.com/<user>/CaptchaVision.git
+cd CaptchaVision
+pip install -r requirements.txt
 ```
 
-## Running the API
+---
+
+## Running the System
+
+### Start API
 
 ```bash
-uvicorn api.app.main:app --reload
+uvicorn api.main:app --reload
+```
+
+### Start Streamlit UI
+
+```bash
+streamlit run app/main.py
+```
+
+---
 
 ```
                 /\_/\ 
@@ -115,37 +131,44 @@ uvicorn api.app.main:app --reload
                /  |  \
               /___|___\
                (__) (__)
+```
+
+---
 
 ## OCR Model Performance
 
-The OCR model was evaluated on independent **validation** and **test** datasets using standard character-level and sequence-level metrics.
+Two OCR approaches were benchmarked:
 
-### Validation Set
+| Model | Character Error Rate (CER) | Exact Match Accuracy | Time / image |
+|------|----------------------------|---------------------|-------------|
+| **OCR From Scratch (Fine-Tuned)** | **0.12** | **67%** | **1.45 sec** |
+| TR-OCR Fine-Tune | 0.26 | 39% | 0.59 sec |
 
-- **Character Error Rate (CER)**: 0.0211  
-- **Character Accuracy**: 97.89%  
-- **Exact Match Accuracy**: 90.27%  
-- **Number of samples**: 12,248  
-
-### Test Set
-
-- **Character Error Rate (CER)**: 0.0201  
-- **Character Accuracy**: 97.99%  
-- **Exact Match Accuracy**: 90.76%  
-- **Number of samples**: 12,250  
+---
 
 ### Interpretation
 
-- The low CER (≈2%) indicates strong character-level recognition performance.  
-- Character accuracy close to 98% demonstrates robust generalization on unseen CAPTCHA images.  
-- Exact Match Accuracy above 90% confirms the model’s ability to correctly solve entire CAPTCHA sequences, which is critical for real-world scraping scenarios.  
-- The consistency between validation and test results suggests limited overfitting and stable model behavior.
+- The custom OCR model significantly outperforms the fine-tuned TR-OCR baseline
+- Lower CER indicates more accurate character prediction
+- Higher exact match rate confirms better sequence reconstruction
+- Trade-off: higher inference time for improved accuracy
+- Custom model is better suited for CAPTCHA distortion patterns
 
+---
 
+## Research Highlights
 
+- CAPTCHA-specific OCR architecture
+- Sequence decoding with CTC
+- Robust preprocessing pipeline
+- Real-world scraping validation
+- API industrialization
+- Modular ML system design
 
-**Collaborateurs :**
+---
+
+## Collaborators
 
 - Anastasiia Sevolka
-- Jean-Baptiste CHEZE
+- Jean-Baptiste Cheze
 - Théo Linale
