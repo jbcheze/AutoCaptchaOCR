@@ -23,20 +23,20 @@ def get_text_if_exist(element):
     return None
 
 # ================================================================================================================================
-# Chrome webdriver config
-# ================================================================================================================================
-options = webdriver.ChromeOptions()
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--headless")
-
-driver = webdriver.Chrome(options=options) 
-wait = WebDriverWait(driver, 10)
-
-# ================================================================================================================================
 # Get all JSON files from the GitHub repo with Selenium + bs4
 # ================================================================================================================================
-def get_json_files(driver, wait, url):
+def get_json_files(url):
+    # ================================================================================================================================
+    # Chrome webdriver config
+    # ================================================================================================================================
+    options = webdriver.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--headless")
+    
+    driver = webdriver.Chrome(options=options) 
+    wait = WebDriverWait(driver, 10)
+    
     # Using Selenium to render JS
     try:
         driver.get(url)
@@ -61,12 +61,13 @@ def get_json_files(driver, wait, url):
         return json_files 
     
     except Exception as e:
+        print(f"Error {e}")
         return []
     
     finally:
         driver.quit()
 
-json_files = get_json_files(driver,wait,url) # 408 files are too long to check, a) long with bs4 b) giant platforms do not use text captcha anymore
+json_files = get_json_files(url) # 408 files are too long to check, a) long with bs4 b) giant platforms do not use text captcha anymore
 
 # ================================================================================================================================
 # Filtering main JSON files by keywords (cookie related & top cookie governance platforms)
