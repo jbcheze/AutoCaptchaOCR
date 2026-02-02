@@ -221,6 +221,6 @@ Two OCR approaches were benchmarked:
 
 ## Collaborators
 
-- Anastasiia Sevolka
+- Anastasiia Savelkova
 - Jean-Baptiste Cheze
 - Théo Linale
