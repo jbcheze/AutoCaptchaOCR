@@ -1,9 +1,19 @@
 import streamlit as st
 import requests
+from PIL import Image
 
 API_URL = "http://127.0.0.1:8000"
 
-st.title("Résolution automatique de CAPTCHA")
+
+col1, col2 = st.columns([1, 4])
+
+with col1:
+    logo = Image.open("assets/logo-mosef.png")
+    st.image(logo, width=120)
+
+with col2:
+    st.title("Résolution automatique de CAPTCHA")
+
 
 
 # Charger les modèles depuis l'API
