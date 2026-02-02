@@ -5,6 +5,7 @@ annotated-types==0.7.0
 anyio==4.12.0
 astunparse==1.6.3
 attrs==25.4.0
+beautifulsoup4==4.13.5
 blinker==1.9.0
 cachetools==6.2.4
 certifi==2025.11.12
@@ -35,6 +36,7 @@ jsonschema==4.25.1
 jsonschema-specifications==2025.9.1
 keras==3.12.0
 lazy_loader==0.4
+lxml==5.4.0
 libclang==18.1.1
 Markdown==3.10
 markdown-it-py==4.0.0
