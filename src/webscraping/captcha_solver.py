@@ -1,6 +1,5 @@
 # ================================================================================================================================
 # CAPTCHA SOLVER
-# The goal is to solve detected CAPTCHA - detect input field, tap the answer & submit it.
 # ================================================================================================================================
 
 import random
@@ -18,14 +17,16 @@ from src.webscraping.captcha_scraper import CaptchaScraper
 
 
 class CaptchaSolver(CaptchaScraper):
-    # ================================================================================================================================
-    # Inherit from CaptchaScraper
-    # ================================================================================================================================
 
     def __init__(self, chrome_driver_path=None):
         super().__init__(chrome_driver_path)
         self.input_field = None
         self.initial_url = None
+
+
+    # =====================================================================
+    # INPUT FIELD SEARCH
+    # =====================================================================
 
     def search_input_field(self):
 
@@ -33,7 +34,7 @@ class CaptchaSolver(CaptchaScraper):
 
         input_field_names = ["captcha", "code", "type_code", "captcha_code", "cap_code"]
 
-        # Search by ID
+        # By ID
         for name in input_field_names:
             try:
                 element = self.driver.find_element(By.ID, name)
@@ -44,7 +45,7 @@ class CaptchaSolver(CaptchaScraper):
             except:
                 pass
 
-        # Search by NAME
+        # By NAME
         for name in input_field_names:
             try:
                 element = self.driver.find_element(By.NAME, name)
@@ -55,12 +56,14 @@ class CaptchaSolver(CaptchaScraper):
             except:
                 pass
 
-        # Search near CAPTCHA
+        # Near CAPTCHA
         if self.captcha_element:
+
             try:
                 current = self.captcha_element
 
                 for _ in range(5):
+
                     parent = current.find_element(By.XPATH, "..")
                     inputs = parent.find_elements(By.TAG_NAME, "input")
 
@@ -81,6 +84,7 @@ class CaptchaSolver(CaptchaScraper):
 
         # Last chance
         try:
+
             inputs = self.driver.find_elements(By.XPATH, "//input[@type='text']")
 
             for inp in inputs:
@@ -97,6 +101,11 @@ class CaptchaSolver(CaptchaScraper):
 
         print("No input found")
         return None
+
+
+    # =====================================================================
+    # TYPING
+    # =====================================================================
 
     def tap_solution(self, answer):
 
@@ -115,7 +124,7 @@ class CaptchaSolver(CaptchaScraper):
 
             for char in answer:
                 self.input_field.send_keys(char)
-                time.sleep(random.uniform(0.15, 0.5))
+                time.sleep(random.uniform(0.15, 0.4))
 
             return True
 
@@ -123,10 +132,8 @@ class CaptchaSolver(CaptchaScraper):
             print("Typing error:", e)
             return False
 
+
     def fast_solution(self, answer):
-        """
-        Fast bot-like typing
-        """
 
         try:
             self.input_field.clear()
@@ -136,11 +143,17 @@ class CaptchaSolver(CaptchaScraper):
         except:
             return False
 
+
+    # =====================================================================
+    # SUBMIT
+    # =====================================================================
+
     def submit_captcha(self):
 
         print("Submitting")
 
         try:
+
             btn = self.driver.find_element(By.XPATH, "//button[@type='submit']")
 
             if btn.is_displayed():
@@ -162,6 +175,11 @@ class CaptchaSolver(CaptchaScraper):
         print("Submit failed")
         return False
 
+
+    # =====================================================================
+    # SUCCESS CHECK
+    # =====================================================================
+
     def check_success(self):
 
         time.sleep(2)
@@ -181,9 +199,15 @@ class CaptchaSolver(CaptchaScraper):
 
         return None
 
+
+    # =====================================================================
+    # SCREENSHOT
+    # =====================================================================
+
     def save_screenshot(self, label="result"):
 
         try:
+
             Path("data/solved").mkdir(parents=True, exist_ok=True)
 
             name = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -197,12 +221,16 @@ class CaptchaSolver(CaptchaScraper):
         except:
             return None
 
-    def solve_with_model(self, url, model_callback, human_like=True):
-        """
-        Main solver
 
-        human_like=True  -> slow typing
-        human_like=False -> fast typing
+    # =====================================================================
+    # MAIN SOLVER (CORRECTED)
+    # =====================================================================
+
+    def solve_with_model(self, url, model_callback, human_like=True):
+
+        """
+        Page is ALREADY loaded by API
+        Do NOT reload here
         """
 
         result = {
@@ -215,19 +243,22 @@ class CaptchaSolver(CaptchaScraper):
 
         try:
 
-            # STEP 1
-            print("[1] Loading page")
+            # STEP 1 — NO RELOAD
+            print("[1] Using already loaded page")
 
-            self.driver.get(url)
-            self.initial_url = url
+            self.initial_url = self.driver.current_url
+
 
             try:
-                self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                self.wait.until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
             except TimeoutException:
                 print("Timeout")
                 return result
 
-            # STEP 2
+
+            # STEP 2 — CAPTCHA
             print("[2] Extracting CAPTCHA")
 
             found = self.extract_captcha()
@@ -236,19 +267,25 @@ class CaptchaSolver(CaptchaScraper):
             if not found:
                 return result
 
-            # STEP 3
+
+            # STEP 3 — SAVE IMAGE
             print("[3] Saving CAPTCHA")
 
             path = self.save_captcha_image()
             result["captcha_path"] = path
 
-            # STEP 4
+            if not path:
+                return result
+
+
+            # STEP 4 — OCR
             print("[4] Solving")
 
             solution = model_callback(path)
             result["solution"] = solution
 
-            # STEP 5
+
+            # STEP 5 — INPUT
             print("[5] Filling")
 
             if not self.search_input_field():
@@ -264,28 +301,38 @@ class CaptchaSolver(CaptchaScraper):
                 if not self.fast_solution(solution):
                     return result
 
-            # STEP 6
+
+            # STEP 6 — SUBMIT
             print("[6] Submitting")
 
             if not self.submit_captcha():
                 return result
 
-            # STEP 7
+
+            # STEP 7 — CHECK
             print("[7] Checking")
 
             result["success"] = self.check_success()
+
 
             if path:
                 self.save_metadata(path, url)
 
             self.save_screenshot("final")
 
+
             return result
 
+
         except Exception as e:
+
             print("Solver error:", e)
             return result
 
+
+# =====================================================================
+# DEMO
+# =====================================================================
 
 def main():
 
@@ -294,6 +341,10 @@ def main():
     def demo_model(image):
         print("Processing:", image)
         return "abcde"
+
+    solver.driver.get(
+        "https://rutracker.org/forum/profile.php?mode=register"
+    )
 
     result = solver.solve_with_model(
         url="https://rutracker.org/forum/profile.php?mode=register",
